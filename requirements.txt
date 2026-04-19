@@ -6,3 +6,5 @@ faiss-cpu
 numpy
 requests
 pydantic
+aiofiles
+python-multipart

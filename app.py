@@ -1,10 +1,14 @@
 import os
 import logging
-from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Query, File, UploadFile, Form
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
 import uvicorn
+import json
+import aiofiles
+from pathlib import Path
 
 from loader import loader
 from db import db_manager
@@ -17,8 +21,11 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="AI Support Agent",
     description="Local AI-powered support system for banking tickets and database queries",
-    version="1.0.0"
+    version="2.0.0"
 )
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Pydantic models
 class SearchRequest(BaseModel):
@@ -32,6 +39,15 @@ class SQLQueryRequest(BaseModel):
 class SummarizeRequest(BaseModel):
     query: str
     ticket_ids: List[str]
+
+class SchemaUpload(BaseModel):
+    name: str
+    category: str
+    schema_data: str
+
+# Schema storage
+SCHEMA_DIR = Path("schemas")
+SCHEMA_DIR.mkdir(exist_ok=True)
 
 # Startup event
 @app.on_event("startup")
@@ -55,6 +71,18 @@ async def startup_event():
 async def health_check():
     """Health check endpoint."""
     return {"status": "healthy", "message": "AI Support Agent is running"}
+
+# Main UI
+@app.get("/", response_class=HTMLResponse)
+async def main_ui():
+    """Serve the main user interface."""
+    return FileResponse("static/index.html")
+
+# Admin UI
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_ui():
+    """Serve the admin interface."""
+    return FileResponse("static/admin.html")
 
 # Ticket search endpoint
 @app.post("/api/search-tickets")
@@ -146,6 +174,124 @@ async def get_schema(table_name: str):
     except Exception as e:
         logger.error(f"Failed to get schema: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get schema: {str(e)}")
+
+# Schema Management Endpoints
+@app.post("/api/schemas/upload")
+async def upload_schema(
+    name: str = Form(...),
+    category: str = Form(...),
+    schema_file: UploadFile = File(...)
+):
+    """Upload a schema file for a specific category."""
+    try:
+        # Read file content
+        content = await schema_file.read()
+        schema_data = content.decode('utf-8')
+
+        # Validate JSON if it's JSON format
+        try:
+            json.loads(schema_data)
+            file_extension = ".json"
+        except json.JSONDecodeError:
+            file_extension = ".txt"
+
+        # Save schema file
+        filename = f"{category}_{name}{file_extension}"
+        schema_path = SCHEMA_DIR / filename
+
+        async with aiofiles.open(schema_path, 'w') as f:
+            await f.write(schema_data)
+
+        return {
+            "message": "Schema uploaded successfully",
+            "filename": filename,
+            "category": category,
+            "name": name
+        }
+    except Exception as e:
+        logger.error(f"Schema upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@app.get("/api/schemas")
+async def list_schemas():
+    """List all uploaded schemas."""
+    try:
+        schemas = []
+        for schema_file in SCHEMA_DIR.glob("*"):
+            if schema_file.is_file():
+                # Parse filename: category_name.extension
+                filename = schema_file.name
+                parts = filename.rsplit('.', 1)
+                name_part = parts[0]
+                extension = parts[1] if len(parts) > 1 else ""
+
+                # Split category and name
+                if '_' in name_part:
+                    category, name = name_part.split('_', 1)
+                else:
+                    category = "general"
+                    name = name_part
+
+                schemas.append({
+                    "name": name,
+                    "category": category,
+                    "filename": filename,
+                    "extension": extension
+                })
+
+        return {"schemas": schemas}
+    except Exception as e:
+        logger.error(f"Failed to list schemas: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list schemas: {str(e)}")
+
+@app.get("/api/schemas/{category}/{name}")
+async def get_schema_content(category: str, name: str):
+    """Get the content of a specific schema."""
+    try:
+        filename = f"{category}_{name}"
+        # Try both .json and .txt extensions
+        for ext in ['.json', '.txt']:
+            schema_path = SCHEMA_DIR / f"{filename}{ext}"
+            if schema_path.exists():
+                async with aiofiles.open(schema_path, 'r') as f:
+                    content = await f.read()
+                return {
+                    "name": name,
+                    "category": category,
+                    "filename": f"{filename}{ext}",
+                    "content": content
+                }
+
+        raise HTTPException(status_code=404, detail="Schema not found")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to get schema content: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get schema: {str(e)}")
+
+@app.delete("/api/schemas/{category}/{name}")
+async def delete_schema(category: str, name: str):
+    """Delete a specific schema."""
+    try:
+        filename = f"{category}_{name}"
+        deleted = False
+
+        # Try both .json and .txt extensions
+        for ext in ['.json', '.txt']:
+            schema_path = SCHEMA_DIR / f"{filename}{ext}"
+            if schema_path.exists():
+                schema_path.unlink()
+                deleted = True
+
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Schema not found")
+
+        return {"message": f"Schema {category}/{name} deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to delete schema: {e}")
+        raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

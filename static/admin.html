@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Support Agent - Admin Panel</title>
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚙️ Admin Panel</h1>
+            <p>Schema Management - Banking Support System</p>
+            <nav>
+                <a href="/" class="nav-link">User Interface</a>
+                <a href="/admin" class="nav-link active">Admin Panel</a>
+            </nav>
+        </header>
+
+        <main>
+            <div class="admin-grid">
+                <!-- Upload Schema Section -->
+                <div class="admin-section">
+                    <h3>📤 Upload Schema</h3>
+                    <p>Upload database schema files for different categories.</p>
+
+                    <form id="upload-form" enctype="multipart/form-data">
+                        <div class="input-group">
+                            <label for="schema-name">Schema Name:</label>
+                            <input type="text" id="schema-name" placeholder="e.g., transaction_schema" required>
+
+                            <label for="schema-category">Category:</label>
+                            <select id="schema-category" required>
+                                <option value="">Select Category</option>
+                                <option value="Transaction_Log">Transaction_Log</option>
+                                <option value="Tickets">Tickets</option>
+                                <option value="Customer_Data">Customer_Data</option>
+                                <option value="Account_Data">Account_Data</option>
+                                <option value="Other">Other</option>
+                            </select>
+
+                            <label for="schema-file">Schema File:</label>
+                            <input type="file" id="schema-file" accept=".json,.txt" required>
+                        </div>
+
+                        <button type="submit" class="btn-primary">Upload Schema</button>
+                    </form>
+                </div>
+
+                <!-- Schema List Section -->
+                <div class="admin-section">
+                    <h3>📋 Schema Library</h3>
+                    <p>Manage uploaded schema files.</p>
+
+                    <button onclick="loadSchemas()" class="btn-secondary">Refresh List</button>
+
+                    <div id="schema-list" class="schema-list">
+                        <p>Loading schemas...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Schema Viewer -->
+            <div class="schema-viewer">
+                <h3>📖 Schema Viewer</h3>
+                <div id="schema-content" class="schema-content">
+                    <p>Select a schema from the list to view its contents.</p>
+                </div>
+            </div>
+
+            <!-- Response Section -->
+            <div class="response-section">
+                <h3>Response</h3>
+                <div id="admin-loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Processing...</p>
+                </div>
+                <div id="admin-response" class="response-container">
+                    <pre>Admin operations will show results here.</pre>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2026 Banking Support System - Admin Panel</p>
+        </footer>
+    </div>
+
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>
