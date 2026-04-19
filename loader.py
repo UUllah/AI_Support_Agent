@@ -16,11 +16,12 @@ class TicketLoader:
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.index = None
         self.metadata = []
+        # Use hardcoded database config for now (from knowledge_loader.py)
         self.db_config = {
-            'server': os.getenv('DB_SERVER'),
-            'database': os.getenv('DB_NAME'),
-            'username': os.getenv('DB_USER'),
-            'password': os.getenv('DB_PASSWORD'),
+            'server': '172.16.0.22',
+            'database': 'jitbitHelpDesk',
+            'username': 'ubaid',
+            'password': 'Avanza@123',
             'driver': '{ODBC Driver 17 for SQL Server}'
         }
 
@@ -33,7 +34,8 @@ class TicketLoader:
                 f"DATABASE={self.db_config['database']};"
                 f"UID={self.db_config['username']};"
                 f"PWD={self.db_config['password']};"
-                "Trusted_Connection=no;"
+                "Encrypt=no;"
+                "TrustServerCertificate=yes;"
             )
             return pyodbc.connect(conn_str)
         except Exception as e:
@@ -41,26 +43,27 @@ class TicketLoader:
             raise
 
     def load_tickets(self) -> List[Dict[str, Any]]:
-        """Load ticket data from SQL Server."""
-        query = """
-        SELECT ticket_id, subject, summary
-        FROM tickets
-        WHERE subject IS NOT NULL AND summary IS NOT NULL
-        """
+        """Load ticket data from database using updated knowledge_loader."""
         try:
-            with self.connect_db() as conn:
-                cursor = conn.cursor()
-                cursor.execute(query)
-                rows = cursor.fetchall()
-                tickets = []
-                for row in rows:
-                    ticket_text = f"{row.subject} {row.summary}"
-                    tickets.append({
-                        'ticket_id': row.ticket_id,
-                        'text': ticket_text
-                    })
-                logger.info(f"Loaded {len(tickets)} tickets")
-                return tickets
+            # Import the updated knowledge_loader
+            from knowledge_loader import load_ticket_conversations
+
+            # Load structured tickets
+            structured_tickets = load_ticket_conversations()
+
+            # Convert to format expected by the rest of the system
+            tickets = []
+            for ticket in structured_tickets:
+                tickets.append({
+                    'ticket_id': ticket['ticket_id'],
+                    'subject': ticket['subject'],
+                    'summary': ticket['summary'],
+                    'comments': ticket['comments'],
+                    'text': ticket['full_text']  # For embeddings
+                })
+
+            logger.info(f"Loaded {len(tickets)} structured tickets")
+            return tickets
         except Exception as e:
             logger.error(f"Failed to load tickets: {e}")
             raise
@@ -76,8 +79,14 @@ class TicketLoader:
         self.index = faiss.IndexFlatL2(dimension)
         self.index.add(embeddings)
 
-        # Store metadata
-        self.metadata = [{'ticket_id': ticket['ticket_id'], 'text': ticket['text']} for ticket in tickets]
+        # Store metadata with structured information
+        self.metadata = [{
+            'ticket_id': ticket['ticket_id'],
+            'subject': ticket['subject'],
+            'summary': ticket['summary'],
+            'comments': ticket['comments'],
+            'text': ticket['text']
+        } for ticket in tickets]
 
         logger.info(f"Built FAISS index with {len(tickets)} vectors")
 
@@ -111,10 +120,51 @@ class TicketLoader:
         for i, idx in enumerate(indices[0]):
             if idx < len(self.metadata):
                 result = self.metadata[idx].copy()
-                result['score'] = float(distances[0][i])
+                result['score'] = round(float(distances[0][i]), 3)
+
+                # Create clean summarized insight
+                result['insight'] = self._generate_clean_insight(result)
+
+                # Remove full text and comments from response for cleaner output
+                result.pop('text', None)
+                result.pop('comments', None)
+
                 results.append(result)
 
         return results
+
+    def _generate_clean_insight(self, ticket_data: Dict[str, Any]) -> str:
+        """Generate a clean, summarized insight from ticket data."""
+        import re
+
+        # Combine subject and summary
+        insight_parts = []
+        if ticket_data.get('subject'):
+            insight_parts.append(ticket_data['subject'])
+        if ticket_data.get('summary'):
+            insight_parts.append(ticket_data['summary'])
+
+        # Add key comments (first 2-3 meaningful comments)
+        comments = ticket_data.get('comments', [])
+        meaningful_comments = []
+        for comment in comments[:3]:  # Limit to first 3 comments
+            text = comment.get('text', '') if isinstance(comment, dict) else str(comment)
+            # Remove noise patterns
+            text = re.sub(r'^(Dear|Hello|Hi)\s+\w+,?\s*', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'Best\s+Regards:?\s*\w+', '', text, flags=re.IGNORECASE)
+            text = re.sub(r'Please\s+connect|Kindly|Regards\s*$', '', text, flags=re.IGNORECASE)
+            text = text.strip()
+            if text and len(text) > 10:  # Only meaningful comments
+                meaningful_comments.append(text[:100] + '...' if len(text) > 100 else text)
+
+        insight_parts.extend(meaningful_comments[:2])  # Limit to 2 key comments
+
+        # Join and limit length
+        insight = '. '.join([p for p in insight_parts if p])
+        if len(insight) > 200:
+            insight = insight[:197] + '...'
+
+        return insight
 
 # Global loader instance
 loader = TicketLoader()

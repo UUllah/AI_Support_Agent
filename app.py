@@ -9,6 +9,7 @@ import uvicorn
 import json
 import aiofiles
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from loader import loader
 from db import db_manager
@@ -17,15 +18,6 @@ from llm import llm_manager
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-app = FastAPI(
-    title="AI Support Agent",
-    description="Local AI-powered support system for banking tickets and database queries",
-    version="2.0.0"
-)
-
-# Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Pydantic models
 class SearchRequest(BaseModel):
@@ -49,10 +41,10 @@ class SchemaUpload(BaseModel):
 SCHEMA_DIR = Path("schemas")
 SCHEMA_DIR.mkdir(exist_ok=True)
 
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Initialize the system on startup."""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application startup and shutdown events."""
+    # Startup
     try:
         # Try to load existing index
         if not loader.load_index():
@@ -65,6 +57,21 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to initialize system: {e}")
         raise
+
+    yield
+
+    # Shutdown (if needed)
+    logger.info("Application shutting down")
+
+app = FastAPI(
+    title="AI Support Agent",
+    description="Local AI-powered support system for banking tickets and database queries",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Health check
 @app.get("/health")
@@ -98,6 +105,58 @@ async def search_tickets(request: SearchRequest):
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+def format_ticket_text(text: str) -> str:
+    """Format ticket text for better readability."""
+    import re
+    import html
+
+    # Decode HTML entities
+    text = html.unescape(text)
+
+    # Remove excessive whitespace and normalize line breaks
+    text = re.sub(r'\r\n', '\n', text)
+    text = re.sub(r'\n+', '\n', text)
+    text = re.sub(r'\n\s*\n', '\n\n', text)
+
+    # Clean up common patterns
+    text = re.sub(r'Best Regards:?\s*', 'Best Regards: ', text, flags=re.IGNORECASE)
+    text = re.sub(r'Dear\s+', 'Dear ', text, flags=re.IGNORECASE)
+    text = re.sub(r'Hello\s+', 'Hello ', text, flags=re.IGNORECASE)
+
+    # Remove excessive spaces
+    text = re.sub(r' +', ' ', text)
+
+    # Split into paragraphs and clean up
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+
+    # Limit to reasonable length (first 500 characters of combined text)
+    combined_text = '\n\n'.join(paragraphs)
+    if len(combined_text) > 500:
+        combined_text = combined_text[:497] + '...'
+
+    return combined_text
+
+def generate_ticket_summary(text: str) -> str:
+    """Generate a brief summary of the ticket content."""
+    import re
+    import html
+
+    # Clean the text first
+    clean_text = html.unescape(text)
+    clean_text = re.sub(r'\r\n', ' ', clean_text)
+    clean_text = re.sub(r'\n+', ' ', clean_text)
+    clean_text = re.sub(r' +', ' ', clean_text)
+
+    # Extract key information
+    sentences = re.split(r'[.!?]+', clean_text)[:3]  # First 3 sentences
+    summary = '. '.join([s.strip() for s in sentences if s.strip()])
+
+    # Limit summary length
+    if len(summary) > 150:
+        summary = summary[:147] + '...'
+
+    return summary
 
 # SQL AI Agent endpoint
 @app.post("/api/sql-query")
