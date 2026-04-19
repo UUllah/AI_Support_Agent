@@ -45,7 +45,13 @@
                         </select>
                     </div>
 
-                    <button onclick="callSearchAPI()" class="btn-primary">Search Tickets</button>
+                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                        <button onclick="callSearchAPI()" class="btn-primary">Search Tickets</button>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: #ecf0f1; border-radius: 4px;">
+                            <input type="checkbox" id="toggle-summary" checked>
+                            <span style="font-size: 14px; color: #2c3e50;">Show Summary</span>
+                        </label>
+                    </div>
                 </div>
             </div>
 

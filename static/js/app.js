@@ -1,5 +1,8 @@
 // AI Support Agent - User Interface JavaScript
 
+// Global state for UI toggles
+let showSummaryColumn = true;
+
 // Tab switching functionality
 function showTab(tabName) {
     // Hide all tabs
@@ -52,7 +55,18 @@ function displayResponse(data, error = false) {
     if (error) {
         output.innerHTML = `<span style="color: #e74c3c;">Error: ${JSON.stringify(data, null, 2)}</span>`;
     } else {
-        output.textContent = JSON.stringify(data, null, 2);
+        // Filter out summary field if toggle is off
+        let displayData = data;
+        if (!showSummaryColumn && data.results && Array.isArray(data.results)) {
+            displayData = {
+                ...data,
+                results: data.results.map(result => {
+                    const {summary, ...rest} = result;
+                    return rest;
+                })
+            };
+        }
+        output.textContent = JSON.stringify(displayData, null, 2);
     }
 }
 
@@ -65,6 +79,9 @@ async function callSearchAPI() {
         displayResponse({error: 'Please enter a search query'}, true);
         return;
     }
+
+    // Update toggle state from checkbox
+    showSummaryColumn = document.getElementById('toggle-summary').checked;
 
     showLoading();
 
