@@ -46,6 +46,10 @@ async def lifespan(app: FastAPI):
     """Handle application startup and shutdown events."""
     # Startup
     try:
+        # Test database connection first
+        logger.info("Testing database connection...")
+        test_database_connection()
+
         # Try to load existing index
         if not loader.load_index():
             # If no index exists, build it
@@ -62,6 +66,50 @@ async def lifespan(app: FastAPI):
 
     # Shutdown (if needed)
     logger.info("Application shutting down")
+
+def test_database_connection():
+    """Test database connection and throw error if unavailable."""
+    try:
+        # Use the same connection logic as loader
+        import os
+        import pyodbc
+
+        db_config = {
+            'server': '172.16.0.22',
+            'database': 'jitbitHelpDesk',
+            'username': 'ubaid',
+            'password': 'Avanza@123',
+            'driver': '{ODBC Driver 17 for SQL Server}'
+        }
+
+        conn_str = (
+            f"DRIVER={db_config['driver']};"
+            f"SERVER={db_config['server']};"
+            f"DATABASE={db_config['database']};"
+            f"UID={db_config['username']};"
+            f"PWD={db_config['password']};"
+            "Encrypt=no;"
+            "TrustServerCertificate=yes;"
+        )
+
+        # Test connection with a simple query
+        with pyodbc.connect(conn_str, timeout=10) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 as test")
+            result = cursor.fetchone()
+            if result and result.test == 1:
+                logger.info("Database connection test successful")
+            else:
+                raise Exception("Database test query failed")
+
+    except pyodbc.Error as e:
+        error_msg = f"Database connection failed: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(f"SQL Database unavailable: {str(e)}")
+    except Exception as e:
+        error_msg = f"Database connection test failed: {str(e)}"
+        logger.error(error_msg)
+        raise RuntimeError(f"SQL Database unavailable: {str(e)}")
 
 app = FastAPI(
     title="AI Support Agent",
