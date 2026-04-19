@@ -30,20 +30,20 @@ def load_ticket_conversations():
 
     cursor = conn.cursor()
 
-    # Query joining TicketDetails and Ticket_Comments
+    # Query joining hdIssues and hdComments
     query = """
     SELECT
-        td.IssueID as ticket_id,
-        td.Subject as subject,
-        td.Summary as summary,
-        tc.Body as comment_body,
-        tc.CommentDate as comment_date
-    FROM TicketDetails td
-    LEFT JOIN Ticket_Comments tc ON td.IssueID = tc.IssueID
-    WHERE tc.IsSystem = 0
-      AND tc.Body IS NOT NULL
-      AND YEAR(tc.CommentDate) = 2026
-    ORDER BY td.IssueID, tc.CommentDate
+        hdC.IssueID as ticket_id,
+        hdI.Subject as subject,
+        hdI.Body as ticket_summary,
+        hdC.Body as comment_body,
+        hdC.CommentDate as comment_date
+    FROM hdComments hdC
+    INNER JOIN hdIssues hdI on hdC.IssueID = hdI.IssueID
+    WHERE hdC.IsSystem = 0
+      AND hdC.Body IS NOT NULL
+      AND YEAR(hdC.CommentDate) = 2026
+    ORDER BY hdC.IssueID, hdC.CommentDate
     """
 
     cursor.execute(query)
@@ -62,7 +62,7 @@ def load_ticket_conversations():
         if tickets[ticket_id]['ticket_id'] is None:
             tickets[ticket_id]['ticket_id'] = ticket_id
             tickets[ticket_id]['subject'] = row.subject or ''
-            tickets[ticket_id]['summary'] = row.summary or ''
+            tickets[ticket_id]['summary'] = row.ticket_summary or ''
 
         # Clean and add comment
         clean_comment_text = clean_comment(row.comment_body)
