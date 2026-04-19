@@ -1,0 +1,24 @@
+<input id="msg">
+<button onclick="send()">Send</button>
+
+<pre id="out"></pre>
+
+<script>
+
+async function send(){
+
+let q=document.getElementById("msg").value
+
+let r=await fetch("http://localhost:8000/ask",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify({question:q})
+})
+
+let d=await r.json()
+
+document.getElementById("out").innerText=d.answer
+
+}
+
+</script>
