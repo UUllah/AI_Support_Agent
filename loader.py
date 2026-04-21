@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 class TicketLoader:
     def __init__(self):
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        self.model_name = 'all-MiniLM-L6-v2'
+        self.model = None
         self.index = None
         self.metadata = []
         # Use hardcoded database config for now (from knowledge_loader.py)
@@ -24,6 +25,12 @@ class TicketLoader:
             'password': 'Avanza@123',
             'driver': '{ODBC Driver 17 for SQL Server}'
         }
+
+    def _ensure_model(self):
+        """Lazy-load the embedding model only when ticket indexing or search is actually used."""
+        if self.model is None:
+            logger.info("Loading sentence transformer model: %s", self.model_name)
+            self.model = SentenceTransformer(self.model_name)
 
     def connect_db(self):
         """Establish database connection."""
@@ -70,6 +77,7 @@ class TicketLoader:
 
     def build_index(self, tickets: List[Dict[str, Any]]):
         """Build FAISS index from ticket embeddings."""
+        self._ensure_model()
         texts = [ticket['text'] for ticket in tickets]
         logger.info("Encoding ticket texts...")
         embeddings = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=True)
@@ -113,6 +121,7 @@ class TicketLoader:
         if self.index is None:
             raise ValueError("Index not loaded. Call load_index() or build_index() first.")
 
+        self._ensure_model()
         query_embedding = self.model.encode([query], convert_to_numpy=True)
         distances, indices = self.index.search(query_embedding, top_k)
 

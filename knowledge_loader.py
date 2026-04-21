@@ -32,19 +32,18 @@ def load_ticket_conversations():
 
     # Query joining hdIssues and hdComments
     query = """
-    SELECT 
-        hdC.CommentID,
-        hdC.IssueID,
-        hdI.[Subject],
-		hdI.[BOdy] as Ticket_Summary,
-		hdC.CommentDate,
-        hdC.UserID,
-        hdC.Body as Ticket_User_Comments
+    SELECT
+        hdC.IssueID AS ticket_id,
+        hdI.[Subject] AS subject,
+        hdI.[Body] AS ticket_summary,
+        hdC.CommentDate AS comment_date,
+        hdC.Body AS comment_body
     FROM hdComments hdC
-	INNER JOIN hdIssues hdI on hdC.IssueID = hdI.IssueID
-    WHERE IsSystem = 0
-      AND hdC.Body IS NOT NULL AND year(CommentDate) = '2026' 
-    ORDER BY IssueID, CommentDate
+    INNER JOIN hdIssues hdI ON hdC.IssueID = hdI.IssueID
+    WHERE hdC.IsSystem = 0
+      AND hdC.Body IS NOT NULL
+      AND YEAR(hdC.CommentDate) = 2026
+    ORDER BY hdC.IssueID, hdC.CommentDate
     """
 
     cursor.execute(query)
@@ -65,7 +64,6 @@ def load_ticket_conversations():
             tickets[ticket_id]['subject'] = row.subject or ''
             tickets[ticket_id]['summary'] = row.ticket_summary or ''
 
-        # Clean and add comment
         clean_comment_text = clean_comment(row.comment_body)
         if clean_comment_text:
             tickets[ticket_id]['comments'].append({

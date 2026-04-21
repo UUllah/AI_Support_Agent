@@ -4,6 +4,7 @@ This is a local AI-powered support agent built with FastAPI, FAISS, Sentence Tra
 
 ## Features
 
+- **Hackathon Engine**: Generate ranked banking solution ideas in real time, then build roadmap, demo, PPT, and video-script output
 - **Semantic Ticket Search**: Find relevant tickets using vector similarity search
 - **SQL AI Agent**: Generate and execute SQL queries from natural language
 - **RAG Summarization**: Generate context-aware ticket solutions using local LLM
@@ -59,14 +60,24 @@ This is a local AI-powered support agent built with FastAPI, FAISS, Sentence Tra
 
 6. Open your browser and navigate to `http://localhost:8000`
 
+The default landing page is now the Hackathon Engine. The legacy support agent UI is available at `http://localhost:8000/support-agent`.
+
 ## Web Interface
 
-### User Interface (`/`)
+### User Interface (`/support-agent`)
 - **Ticket Search Tab**: Semantic search through support tickets
 - **SQL Query Agent Tab**: Convert natural language to SQL queries
 - **Support Chat Tab**: Get AI-powered answers based on ticket history
 - Real-time loading indicators and error handling
 - JSON-formatted responses for easy reading
+
+### Hackathon Engine (`/` and `/hackathon-engine`)
+- **Problem Intake**: Capture a banking pain point, current process, systems, and success metric
+- **Real-Time Idea Ranking**: Stream 3-5 practical ideas ranked by business impact, adoption, and simplicity
+- **Roadmap Generator**: Build rollout phases, quantified impact, demo flow, PPT content, and a 3-minute video script
+- **Mode Selection**: Switch between roadmap-focused, basic POC, and advanced production vision outputs
+- **Session Persistence**: Restore the latest problem, selected idea, chosen mode, and generated roadmap from browser storage
+- **Export Actions**: Download the generated package as JSON or Markdown for easy handoff into PPT or notes
 
 ### Admin Panel (`/admin`)
 - **Schema Upload**: Upload database schema files (JSON/TXT) for different categories
@@ -90,7 +101,9 @@ This is a local AI-powered support agent built with FastAPI, FAISS, Sentence Tra
 - `DELETE /api/schemas/{category}/{name}`: Delete schema
 
 ### Web Interface
-- `GET /`: Main user interface
+- `GET /`: Hackathon engine landing page
+- `GET /hackathon-engine`: Hackathon engine landing page alias
+- `GET /support-agent`: Legacy support agent UI
 - `GET /admin`: Admin panel
 - `GET /static/*`: Static files (CSS, JS)
 

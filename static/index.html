@@ -3,40 +3,210 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Support Agent - Banking Support System</title>
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <title>AI Operations Dashboard - Banking Support System</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260421">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>🏦 AI Support Agent</h1>
-            <p>Banking Support System - Local AI-Powered Assistant</p>
+            <h1>AI Operations Dashboard</h1>
+            <p>Ticket intelligence, log analytics, and operator query tools in one view</p>
             <nav>
-                <a href="/" class="nav-link active">User Interface</a>
+                <a href="/" class="nav-link">Hackathon Engine</a>
+                <a href="/support-agent" class="nav-link active">User Interface</a>
                 <a href="/admin" class="nav-link">Admin Panel</a>
             </nav>
         </header>
 
         <main>
             <div class="api-selector">
-                <h2>Select API Function</h2>
+                <h2>Operations Modules</h2>
                 <div class="tab-buttons">
-                    <button class="tab-btn active" onclick="showTab('search')">🔍 Ticket Search</button>
-                    <button class="tab-btn" onclick="showTab('sql')">📊 SQL Query Agent</button>
-                    <button class="tab-btn" onclick="showTab('chat')">💬 Support Chat</button>
+                    <button class="tab-btn active" onclick="showTab('tickets', this)">Ticket Dashboard</button>
+                    <button class="tab-btn" onclick="showTab('logs', this)">Log Analytics</button>
+                    <button class="tab-btn" onclick="showTab('query', this)">Chat / Query</button>
                 </div>
             </div>
 
-            <!-- Ticket Search Tab -->
-            <div id="search-tab" class="tab-content active">
+            <div id="tickets-tab" class="tab-content active">
+                <div class="api-section">
+                    <div class="section-header-row">
+                        <div>
+                            <h3>Ticket Intelligence Dashboard</h3>
+                            <p>Analyze all loaded tickets into business issue categories, recurring patterns, and trend views.</p>
+                        </div>
+                        <div class="action-row">
+                            <button onclick="analyzeTickets()" class="btn-primary">Analyze Loaded Tickets</button>
+                            <button onclick="loadTicketSummary()" class="btn-secondary">Refresh Summary</button>
+                        </div>
+                    </div>
+
+                    <div id="ticket-metrics" class="metric-grid"></div>
+
+                    <div class="dashboard-grid two-column">
+                        <div class="panel-card chart-card">
+                            <h4>Issue Category Distribution</h4>
+                            <canvas id="ticket-category-chart"></canvas>
+                        </div>
+                        <div class="panel-card">
+                            <h4>Top Recurring Issue</h4>
+                            <div id="top-category-card" class="highlight-card muted">Run ticket analysis to identify the dominant issue category.</div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid two-column">
+                        <div class="panel-card chart-card">
+                            <h4>Daily Trend</h4>
+                            <canvas id="ticket-daily-chart"></canvas>
+                        </div>
+                        <div class="panel-card chart-card">
+                            <h4>Weekly Trend</h4>
+                            <canvas id="ticket-weekly-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid two-column">
+                        <div class="panel-card">
+                            <h4>Category Summary</h4>
+                            <div class="table-wrapper">
+                                <table class="data-table" id="ticket-category-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Category Name</th>
+                                            <th>Total Count</th>
+                                            <th>Percentage</th>
+                                            <th>Top 5 Ticket IDs</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="4" class="muted-cell">No ticket analysis available yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="panel-card">
+                            <h4>Top Tickets</h4>
+                            <div class="table-wrapper">
+                                <table class="data-table" id="top-ticket-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Ticket ID</th>
+                                            <th>Category</th>
+                                            <th>Subject</th>
+                                            <th>Insight</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="4" class="muted-cell">No top tickets available yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="logs-tab" class="tab-content">
+                <div class="api-section">
+                    <div class="section-header-row">
+                        <div>
+                            <h3>Log Analytics Module</h3>
+                            <p>Upload access logs, auto-detect the format, infer fields, and compute API operations metrics.</p>
+                        </div>
+                        <div class="action-row">
+                            <input type="file" id="log-file" accept=".log,.txt">
+                            <button onclick="uploadLogFile()" class="btn-primary">Upload and Analyze</button>
+                            <button onclick="loadLogSummary()" class="btn-secondary">Refresh Log Summary</button>
+                        </div>
+                    </div>
+
+                    <div id="log-metrics" class="metric-grid"></div>
+
+                    <div class="dashboard-grid two-column">
+                        <div class="panel-card">
+                            <h4>Raw Log Preview</h4>
+                            <pre id="raw-log-preview" class="preview-box">Upload a .log or .txt file to preview the first 100 lines.</pre>
+                        </div>
+                        <div class="panel-card">
+                            <h4>Parsed Fields Preview</h4>
+                            <div id="parsed-field-preview" class="field-list muted">No parsed fields available yet.</div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid two-column">
+                        <div class="panel-card chart-card">
+                            <h4>Peak Hours</h4>
+                            <canvas id="log-hourly-chart"></canvas>
+                        </div>
+                        <div class="panel-card">
+                            <h4>Parsed Rows Preview</h4>
+                            <div class="table-wrapper compact-table">
+                                <table class="data-table" id="parsed-log-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Timestamp</th>
+                                            <th>Method</th>
+                                            <th>Endpoint</th>
+                                            <th>Status</th>
+                                            <th>Response Time</th>
+                                            <th>IP</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="6" class="muted-cell">No log rows parsed yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="dashboard-grid two-column">
+                        <div class="panel-card">
+                            <h4>Top Endpoints</h4>
+                            <div class="table-wrapper">
+                                <table class="data-table" id="log-endpoint-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Endpoint</th>
+                                            <th>Hits</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="2" class="muted-cell">No endpoint metrics available yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="panel-card">
+                            <h4>Top Failed APIs</h4>
+                            <div class="table-wrapper">
+                                <table class="data-table" id="failed-api-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Endpoint</th>
+                                            <th>Failures</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td colspan="2" class="muted-cell">No failed API metrics available yet.</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="query-tab" class="tab-content">
                 <div class="api-section">
                     <h3>Semantic Ticket Search</h3>
                     <p>Search for relevant support tickets using natural language queries.</p>
 
                     <div class="input-group">
                         <label for="search-query">Search Query:</label>
-                        <input type="text" id="search-query" placeholder="e.g., login issues with mobile banking app"
-                               onkeypress="handleEnter(event, 'search')">
+                        <input type="text" id="search-query" placeholder="e.g., login issues with mobile banking app" onkeypress="handleEnter(event, 'search')">
                         <label for="search-topk">Number of results:</label>
                         <select id="search-topk">
                             <option value="3">3</option>
@@ -45,61 +215,52 @@
                         </select>
                     </div>
 
-                    <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                    <div class="action-row spaced-row">
                         <button onclick="callSearchAPI()" class="btn-primary">Search Tickets</button>
-                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px 15px; background: #ecf0f1; border-radius: 4px;">
+                        <label class="toggle-chip">
                             <input type="checkbox" id="toggle-summary" checked>
-                            <span style="font-size: 14px; color: #2c3e50;">Show Summary</span>
+                            <span>Show Summary</span>
                         </label>
                     </div>
                 </div>
-            </div>
 
-            <!-- SQL Query Tab -->
-            <div id="sql-tab" class="tab-content">
                 <div class="api-section">
                     <h3>SQL Query Agent</h3>
                     <p>Convert natural language questions into SQL queries and execute them.</p>
 
                     <div class="input-group">
                         <label for="sql-query">Natural Language Query:</label>
-                        <textarea id="sql-query" placeholder="e.g., Show me all transactions from last month where amount is greater than 1000"
-                                  rows="3" onkeypress="handleEnter(event, 'sql')"></textarea>
+                        <textarea id="sql-query" placeholder="e.g., Show me all transactions from last month where amount is greater than 1000" rows="3" onkeypress="handleEnter(event, 'sql')"></textarea>
                         <label for="sql-table">Target Table (optional):</label>
                         <input type="text" id="sql-table" placeholder="e.g., transactions">
                     </div>
 
                     <button onclick="callSQLAPI()" class="btn-primary">Execute Query</button>
                 </div>
-            </div>
 
-            <!-- Chat Tab -->
-            <div id="chat-tab" class="tab-content">
                 <div class="api-section">
                     <h3>Support Chat Assistant</h3>
                     <p>Get AI-powered support answers based on ticket history.</p>
 
                     <div class="input-group">
                         <label for="chat-query">Your Question:</label>
-                        <textarea id="chat-query" placeholder="e.g., How do I resolve login issues?"
-                                  rows="3" onkeypress="handleEnter(event, 'chat')"></textarea>
+                        <textarea id="chat-query" placeholder="e.g., How do I resolve login issues?" rows="3" onkeypress="handleEnter(event, 'chat')"></textarea>
                         <label for="chat-tickets">Relevant Ticket IDs (comma-separated):</label>
-                        <input type="text" id="chat-tickets" placeholder="e.g., TICKET-123, TICKET-456">
+                        <input type="text" id="chat-tickets" placeholder="e.g., 36145, 36389">
                     </div>
 
                     <button onclick="callChatAPI()" class="btn-primary">Get Support Answer</button>
                 </div>
-            </div>
 
-            <!-- Response Section -->
-            <div class="response-section">
-                <h3>Response</h3>
-                <div id="loading" class="loading hidden">
-                    <div class="spinner"></div>
-                    <p>Processing your request...</p>
-                </div>
-                <div id="response-container" class="response-container">
-                    <pre id="response-output">Select an API function and submit a request to see results here.</pre>
+                <div class="response-section">
+                    <h3>Response</h3>
+                    <div id="loading" class="loading hidden">
+                        <div class="spinner"></div>
+                        <p>Processing your request...</p>
+                    </div>
+                    <div id="response-container" class="response-container">
+                        <pre id="response-output">Use ticket search, SQL query, or support chat to see results here.</pre>
+                    </div>
                 </div>
             </div>
         </main>
@@ -109,6 +270,6 @@
         </footer>
     </div>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/js/app.js?v=20260421"></script>
 </body>
 </html>

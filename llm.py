@@ -9,10 +9,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class LLMManager:
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "mistral"):
-        self.base_url = base_url
-        self.model = model
-        self.timeout = 30  # seconds
+    def __init__(self, base_url: Optional[str] = None, model: Optional[str] = None):
+        self.base_url = base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+        self.model = model or os.getenv("OLLAMA_MODEL", "qwen2.5:0.5b")
+        self.timeout = int(os.getenv("OLLAMA_TIMEOUT_SECONDS", "45"))
 
     def generate_response(self, prompt: str, context: Optional[str] = None) -> str:
         """Generate a response using the local LLM."""

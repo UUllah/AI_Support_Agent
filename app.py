@@ -1,7 +1,8 @@
 import os
 import logging
+import asyncio
 from fastapi import FastAPI, HTTPException, Query, File, UploadFile, Form
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Dict, Any, Optional
@@ -14,6 +15,8 @@ from contextlib import asynccontextmanager
 from loader import loader
 from db import db_manager
 from llm import llm_manager
+from hackathon_engine import build_solution, generate_ideas
+from analytics_service import analytics_service
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -37,6 +40,23 @@ class SchemaUpload(BaseModel):
     category: str
     schema_data: str
 
+class HackathonIdeaRequest(BaseModel):
+    problem_statement: str
+
+class HackathonRoadmapRequest(BaseModel):
+    problem_statement: str
+    selected_idea_id: str
+    mode: str
+    ideas: List[Dict[str, Any]]
+
+
+def get_ticket_metadata() -> List[Dict[str, Any]]:
+    if loader.metadata:
+        return loader.metadata
+    if loader.load_index():
+        return loader.metadata
+    raise RuntimeError("Ticket metadata is not available. Build or load the ticket index first.")
+
 # Schema storage
 SCHEMA_DIR = Path("schemas")
 SCHEMA_DIR.mkdir(exist_ok=True)
@@ -44,23 +64,36 @@ SCHEMA_DIR.mkdir(exist_ok=True)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Handle application startup and shutdown events."""
+    app.state.capabilities = {
+        "database_ready": False,
+        "ticket_search_ready": False,
+        "hackathon_engine_ready": True,
+    }
+
     # Startup
     try:
-        # Test database connection first
         logger.info("Testing database connection...")
         test_database_connection()
+        app.state.capabilities["database_ready"] = True
+    except Exception as e:
+        logger.warning("Database is unavailable, continuing in degraded mode: %s", e)
 
-        # Try to load existing index
-        if not loader.load_index():
-            # If no index exists, build it
+    try:
+        if loader.load_index():
+            app.state.capabilities["ticket_search_ready"] = True
+            logger.info("Existing ticket index loaded")
+        elif app.state.capabilities["database_ready"]:
             logger.info("No existing index found. Building new index...")
             tickets = loader.load_tickets()
             loader.build_index(tickets)
             loader.save_index()
+            app.state.capabilities["ticket_search_ready"] = True
+            logger.info("Ticket index built successfully")
+        else:
+            logger.warning("Skipping ticket index build because the database is unavailable")
         logger.info("System initialized successfully")
     except Exception as e:
-        logger.error(f"Failed to initialize system: {e}")
-        raise
+        logger.warning("Ticket search is unavailable, continuing in degraded mode: %s", e)
 
     yield
 
@@ -93,7 +126,7 @@ def test_database_connection():
         )
 
         # Test connection with a simple query
-        with pyodbc.connect(conn_str, timeout=10) as conn:
+        with pyodbc.connect(conn_str, timeout=2) as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT 1 as test")
             result = cursor.fetchone()
@@ -125,13 +158,31 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 @app.get("/health")
 async def health_check():
     """Health check endpoint."""
-    return {"status": "healthy", "message": "AI Support Agent is running"}
+    capabilities = getattr(app.state, "capabilities", {})
+    overall_status = "healthy" if capabilities.get("hackathon_engine_ready") else "degraded"
+    return {
+        "status": overall_status,
+        "message": "AI Support Agent is running",
+        "capabilities": capabilities,
+    }
 
 # Main UI
 @app.get("/", response_class=HTMLResponse)
 async def main_ui():
+    """Serve the hackathon engine as the default landing page."""
+    return FileResponse("static/hackathon-engine.html")
+
+
+@app.get("/support-agent", response_class=HTMLResponse)
+async def support_agent_ui():
     """Serve the main user interface."""
     return FileResponse("static/index.html")
+
+
+@app.get("/hackathon-engine", response_class=HTMLResponse)
+async def hackathon_engine_ui():
+    """Serve the hackathon engine interface."""
+    return FileResponse("static/hackathon-engine.html")
 
 # Admin UI
 @app.get("/admin", response_class=HTMLResponse)
@@ -144,6 +195,8 @@ async def admin_ui():
 async def search_tickets(request: SearchRequest):
     """Search for relevant tickets using semantic search."""
     try:
+        if not getattr(app.state, "capabilities", {}).get("ticket_search_ready"):
+            raise HTTPException(status_code=503, detail="Ticket search is not ready. Start the index or database services first.")
         results = loader.search(request.query, request.top_k)
         return {
             "query": request.query,
@@ -153,6 +206,61 @@ async def search_tickets(request: SearchRequest):
     except Exception as e:
         logger.error(f"Search failed: {e}")
         raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+
+
+@app.post("/analyze-tickets")
+@app.post("/api/analyze-tickets")
+async def analyze_tickets():
+    """Analyze all loaded tickets and generate dashboard-ready intelligence."""
+    try:
+        summary = analytics_service.analyze_tickets(get_ticket_metadata())
+        return summary
+    except Exception as e:
+        logger.error("Ticket analysis failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Ticket analysis failed: {str(e)}")
+
+
+@app.get("/ticket-summary")
+@app.get("/api/ticket-summary")
+async def ticket_summary():
+    """Return the latest ticket intelligence summary."""
+    try:
+        summary = analytics_service.get_ticket_summary()
+        if summary is None:
+            summary = analytics_service.analyze_tickets(get_ticket_metadata())
+        return summary
+    except Exception as e:
+        logger.error("Failed to get ticket summary: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to get ticket summary: {str(e)}")
+
+
+@app.post("/upload-log")
+@app.post("/api/upload-log")
+async def upload_log(log_file: UploadFile = File(...)):
+    """Upload and analyze access logs for API operations intelligence."""
+    try:
+        filename = log_file.filename or "uploaded.log"
+        if not filename.lower().endswith((".log", ".txt")):
+            raise HTTPException(status_code=400, detail="Only .log and .txt files are supported.")
+
+        content = await log_file.read()
+        summary = analytics_service.analyze_log_upload(filename, content)
+        return summary
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Log upload failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Log upload failed: {str(e)}")
+
+
+@app.get("/log-summary")
+@app.get("/api/log-summary")
+async def log_summary():
+    """Return the latest parsed log dashboard summary."""
+    summary = analytics_service.get_log_summary()
+    if summary is None:
+        raise HTTPException(status_code=404, detail="No log summary available. Upload a log file first.")
+    return summary
 
 def format_ticket_text(text: str) -> str:
     """Format ticket text for better readability."""
@@ -211,6 +319,8 @@ def generate_ticket_summary(text: str) -> str:
 async def sql_query(request: SQLQueryRequest):
     """Generate and execute SQL query from natural language."""
     try:
+        if not getattr(app.state, "capabilities", {}).get("database_ready"):
+            raise HTTPException(status_code=503, detail="Database connectivity is unavailable for SQL generation.")
         # Get schema info if table specified
         schema_info = None
         if request.table_name:
@@ -265,6 +375,8 @@ async def summarize_tickets(request: SummarizeRequest):
 async def get_tables():
     """Get list of available database tables."""
     try:
+        if not getattr(app.state, "capabilities", {}).get("database_ready"):
+            raise HTTPException(status_code=503, detail="Database connectivity is unavailable.")
         tables = db_manager.get_available_tables()
         return {"tables": tables}
     except Exception as e:
@@ -276,6 +388,8 @@ async def get_tables():
 async def get_schema(table_name: str):
     """Get schema for a specific table."""
     try:
+        if not getattr(app.state, "capabilities", {}).get("database_ready"):
+            raise HTTPException(status_code=503, detail="Database connectivity is unavailable.")
         schema = db_manager.get_table_schema(table_name)
         return schema
     except Exception as e:
@@ -399,6 +513,57 @@ async def delete_schema(category: str, name: str):
     except Exception as e:
         logger.error(f"Failed to delete schema: {e}")
         raise HTTPException(status_code=500, detail=f"Delete failed: {str(e)}")
+
+
+def _ndjson_event(event_type: str, data: Any) -> bytes:
+    return (json.dumps({"type": event_type, "data": data}) + "\n").encode("utf-8")
+
+
+@app.post("/api/hackathon-engine/generate-stream")
+async def generate_hackathon_ideas_stream(request: HackathonIdeaRequest):
+    """Generate ranked hackathon ideas with streaming updates."""
+    problem_statement = request.problem_statement.strip()
+    if len(problem_statement) < 20:
+        raise HTTPException(status_code=400, detail="Please provide a fuller problem statement so ideas can be ranked properly.")
+
+    async def event_stream():
+        yield _ndjson_event("status", {"message": "Understanding the banking problem"})
+        await asyncio.sleep(0)
+        yield _ndjson_event("status", {"message": "Generating practical solution ideas"})
+        await asyncio.sleep(0)
+        payload = generate_ideas(problem_statement)
+        yield _ndjson_event("ideas", payload)
+        yield _ndjson_event(
+            "status",
+            {"message": f"Recommended idea: {payload['recommended_idea_id']} based on business impact, adoption, and simplicity"},
+        )
+        yield _ndjson_event("done", {"step": "ideas"})
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
+
+
+@app.post("/api/hackathon-engine/roadmap-stream")
+async def generate_hackathon_roadmap_stream(request: HackathonRoadmapRequest):
+    """Generate the selected roadmap package with streaming updates."""
+    mode = request.mode.strip().lower()
+    if mode not in {"roadmap", "basic_poc", "advanced"}:
+        raise HTTPException(status_code=400, detail="Mode must be one of: roadmap, basic_poc, advanced")
+
+    async def event_stream():
+        yield _ndjson_event("status", {"message": "Locking the selected idea and approach"})
+        await asyncio.sleep(0)
+        yield _ndjson_event("status", {"message": "Building the real-world roadmap"})
+        await asyncio.sleep(0)
+        payload = build_solution(
+            problem_statement=request.problem_statement,
+            selected_idea_id=request.selected_idea_id,
+            ideas=request.ideas,
+            mode=mode,
+        )
+        yield _ndjson_event("roadmap", payload)
+        yield _ndjson_event("done", {"step": "roadmap"})
+
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

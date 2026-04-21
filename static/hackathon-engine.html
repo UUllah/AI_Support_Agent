@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hackathon Engine - Real-Time AI Idea Generator</title>
+    <link rel="stylesheet" href="/static/css/styles.css?v=20260421">
+</head>
+<body class="engine-body">
+    <div class="container engine-container">
+        <header class="engine-header">
+            <div>
+                <p class="eyebrow">AI Hackathon Engine</p>
+                <h1>Generate practical banking ideas in real time</h1>
+                <p class="hero-copy">Move from raw problem statement to ranked ideas, roadmap, demo flow, PPT content, and a 3-minute video script without leaving the browser.</p>
+            </div>
+            <nav>
+                <a href="/" class="nav-link active">Hackathon Engine</a>
+                <a href="/support-agent" class="nav-link">Support Agent</a>
+                <a href="/admin" class="nav-link">Admin Panel</a>
+            </nav>
+        </header>
+
+        <main class="engine-main">
+            <section class="engine-grid">
+                <div class="engine-panel">
+                    <h2>Step 1: Problem Input</h2>
+                    <p>Describe the banking pain point, current process, available systems, and success metric.</p>
+                    <div class="input-group">
+                        <label for="problem-statement">Problem statement</label>
+                        <textarea id="problem-statement" rows="8" placeholder="Example: Call center agents take 6-8 minutes to resolve card block complaints because they switch between CRM, core banking, and ticket notes. We need a hackathon idea that reduces resolution time using existing systems."></textarea>
+                    </div>
+                    <button id="generate-ideas-btn" class="btn-primary">Generate Ideas</button>
+
+                    <div class="engine-divider"></div>
+
+                    <h2>Step 2: Selection</h2>
+                    <p>Pick one ranked idea, then choose the delivery mode.</p>
+                    <div id="selected-idea-card" class="selection-card muted-card">
+                        No idea selected yet.
+                    </div>
+
+                    <div class="mode-grid" id="mode-grid">
+                        <button class="mode-btn active" data-mode="roadmap">Business + Roadmap Focus</button>
+                        <button class="mode-btn" data-mode="basic_poc">Basic POC Prototype</button>
+                        <button class="mode-btn" data-mode="advanced">Advanced Production Vision</button>
+                    </div>
+
+                    <button id="generate-roadmap-btn" class="btn-primary" disabled>Generate Roadmap Package</button>
+                </div>
+
+                <div class="engine-panel">
+                    <div class="panel-header-row">
+                        <h2>Live Progress</h2>
+                        <span id="engine-status-badge" class="status-badge idle">Idle</span>
+                    </div>
+                    <div id="live-log" class="live-log">
+                        <div class="log-item">Waiting for a problem statement.</div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="engine-results">
+                <div class="engine-panel">
+                    <div class="panel-header-row">
+                        <h2>Idea Summary</h2>
+                        <div class="action-cluster">
+                            <span id="recommendation-pill" class="recommendation-pill hidden">Recommended</span>
+                            <button id="reset-session-btn" class="btn-secondary">Reset Session</button>
+                        </div>
+                    </div>
+                    <div id="ideas-container" class="ideas-grid empty-state">
+                        Ranked solution ideas will appear here.
+                    </div>
+                </div>
+
+                <div class="engine-panel">
+                    <div class="panel-header-row">
+                        <h2>Roadmap Output</h2>
+                        <div class="action-cluster">
+                            <button id="export-json-btn" class="btn-secondary" disabled>Export JSON</button>
+                            <button id="export-md-btn" class="btn-secondary" disabled>Export Markdown</button>
+                        </div>
+                    </div>
+                    <div id="roadmap-container" class="roadmap-output empty-state">
+                        Generate ideas first, then select one to create the full package.
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/static/js/hackathon-engine.js?v=20260421"></script>
+</body>
+</html>
